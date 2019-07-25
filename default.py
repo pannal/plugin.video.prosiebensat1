@@ -1,4 +1,4 @@
-﻿#!/usr/bin/python
+#!/usr/bin/python
 # -*- coding: utf-8 -*-
 
 import sys
@@ -15,6 +15,9 @@ import base64
 import urllib
 from inputstreamhelper import Helper
 from hashlib import sha1
+import calendar
+from datetime import datetime, timedelta
+import time
 
 addon_handle = int(sys.argv[1])
 addon = xbmcaddon.Addon()
@@ -25,6 +28,97 @@ baseURL = "https://www."
 pluginBaseUrl = "plugin://" + addon.getAddonInfo('id')
 userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.109 Safari/537.36'
 
+channels = [
+               {
+                  'id': '1'
+                , 'label': 'ProSieben'
+                , 'domain': 'prosieben.de'
+                , 'path': '/tv'
+                , 'art': {'icon': os.path.join(addonPath, 'resources/media/channels/prosieben.png')}
+                , 'property_name': 'prosieben-de-24x7'
+                , 'client_location': 'https://www.prosieben.de/livestream'
+                , 'access_token': 'prosieben'
+                , 'client_token':  '01b353c155a9006e80ae7c5ed3eb1c09c0a6995556'
+                , 'epg_name': 'prosieben'
+              }
+            , {
+                  'id': '2'
+                , 'label': 'SAT.1'
+                , 'domain': 'sat1.de'
+                , 'path': '/tv'
+                , 'art': {'icon': os.path.join(addonPath, 'resources/media/channels/sat1.png')}
+                , 'property_name': 'sat1-de-24x7'
+                , 'client_location': 'https://www.sat1.de/livestream'
+                , 'access_token': 'sat1'
+                , 'client_token':  '01e491d866b37341734d691a8acb48af37a77bf26f'
+                , 'epg_name': 'sat1'
+              }
+            , {
+                  'id': '3'
+                , 'label': 'kabel eins'
+                , 'domain': 'kabeleins.de'
+                , 'path': '/tv'
+                , 'art': {'icon': os.path.join(addonPath, 'resources/media/channels/kabeleins.png')}
+                , 'property_name': 'kabeleins-de-24x7'
+                , 'client_location': 'https://www.kabeleins.de/livestream'
+                , 'access_token': 'kabeleins'
+                , 'client_token':  '014c87bfe2ce4aebf6219ed699602a1f152194e4cd'
+                , 'epg_name': 'k1'
+              }
+            , {
+                  'id': '4'
+                , 'label': 'Sixx'
+                , 'domain': 'sixx.de'
+                , 'path': '/tv'
+                , 'art': {'icon': os.path.join(addonPath, 'resources/media/channels/sixx.png')}
+                , 'property_name': 'sixx-de-24x7'
+                , 'client_location': 'https://www.sixx.de/livestream'
+                , 'access_token': 'sixx'
+                , 'client_token':  '017705703133050842d3ca11fc20a6fc205b8b4025'
+                , 'epg_name': 'sixx'
+              }
+            , {
+                  'id': '5'
+                , 'label': 'ProSiebenMaxx'
+                , 'domain': 'prosiebenmaxx.de'
+                , 'path': '/tv'
+                , 'art': {'icon': os.path.join(addonPath, 'resources/media/channels/prosiebenmaxx.png')}
+                , 'property_name' : 'prosiebenmaxx-de-24x7'
+                , 'client_location': 'https://www.prosiebenmaxx.de/livestream'
+                , 'access_token' : 'prosiebenmaxx'
+                , 'client_token':  '01963623e9b364805dbe12f113dba1c4914c24d189'
+                , 'epg_name': 'prosiebenmaxx'
+              }
+            , {
+                  'id': '6'
+                , 'label': 'SAT.1 Gold'
+                , 'domain': 'sat1gold.de'
+                , 'path': '/tv'
+                , 'art': {'icon': os.path.join(addonPath, 'resources/media/channels/sat1gold.png')}
+                , 'property_name' : 'sat1gold-de-24x7'
+                , 'client_location': 'https://www.sat1gold.de/livestream'
+                , 'access_token' : 'sat1gold'
+                , 'client_token': '01107e433196365e4d54d0f90bdf1070cd2df5e190'
+                , 'epg_name': 'sat1gold'
+              }
+            , {
+                  'id': '7'
+                , 'label': 'kabel eins Doku'
+                , 'domain': 'kabeleinsdoku.de'
+                , 'path': '/tv'
+                , 'art': {'icon': os.path.join(addonPath, 'resources/media/channels/kabeleinsdoku.png')}
+                , 'property_name' : 'kabeleinsdoku-de-24x7'
+                , 'client_location': 'https://www.kabeleinsdoku.de/livestream'
+                , 'access_token' : 'kabeleinsdoku'
+                , 'client_token': '01ea6d32ff5de5d50d0290dbdf819f9b856bcfd44a'
+                , 'epg_name': 'k1doku'
+              }
+           ]
+
+rootDirs = [
+              {'label': 'Live', 'action': 'livechannels'}
+            , {'channels': channels}
+           ]
 
 def listShows(entry):
     content = getContentFull(entry.get('domain'), entry.get('path'))
@@ -81,8 +175,12 @@ def getContentFull(domain, path):
 
 def getContentPreview(domain, path):
     base = 'https://magellan-api.p7s1.io/content-preview/{0}{1}/graphql'.format(domain, path)
-    parameters = {'query': ' query PreviewContentQuery($domain: String!, $url: String!, $date: DateTime, $contentType: String, $debug: Boolean!, $authentication: AuthenticationInput) { site(domain: $domain, date: $date, authentication: $authentication) { domain path(url: $url) { route { ...fRoute } page { ...fPage ...fVideoPage } content(type: PREVIEW, contentType: $contentType) { ...fContent } mainNav: navigation(type: MAIN) { items { ...fNavigationItem } } metaNav: navigation(type: META) { items { ...fNavigationItem } } channelNav: navigation(type: CHANNEL) { items { ...fNavigationItem } } showsNav: navigation(type: SHOWS) { items { ...fNavigationItem } } footerNav: navigation(type: FOOTER) { items { ...fNavigationItem } } networkNav: navigation(type: NETWORK) { items { ...fNavigationItem } } } } } fragment fRoute on Route { url exists authentication comment contentType name cmsId startDate status endDate } fragment fPage on Page { cmsId contentType pagination { ...fPagination } title shortTitle subheadline proMamsId additionalProMamsIds route source regWall { ...fRegWall } links { ...fLink } metadata { ...fMetadata } breadcrumbs { id href title text } channel { ...fChannel } seo { ...fSeo } modified published flags mainClassNames } fragment fPagination on Pagination { kind limit parent contentType } fragment fRegWall on RegWall { isActive start end } fragment fLink on Link { id classes language href relation title text outbound } fragment fMetadata on Metadata { property name content } fragment fChannel on Channel { name title shortName licenceTerms cssId cmsId proMamsId additionalProMamsIds route image hasLogo liftHeadings, logo sponsors { ...fSponsor } } fragment fSponsor on Sponsor { name url image } fragment fSeo on Seo { title keywords description canonical robots } fragment fVideoPage on VideoPage { ... on VideoPage { copyright description longDescription duration season episode airdate videoType contentResource image webUrl livestreamStartDate livestreamEndDate recommendation { results { headline subheadline duration url image videoType contentType recoVariation recoSource channel { ...fChannelInfo } } } } } fragment fChannelInfo on ChannelInfo { title shortName cssId cmsId } fragment fContent on Content { areas { ...fContentArea } } fragment fContentArea on ContentArea { id containers { ...fContentContainer } filters { ...fFilterOptions } debug @include(if: $debug) { ...fContentDebugInfo } } fragment fContentContainer on ContentContainer { id style elements { ...fContentElement } } fragment fContentElement on ContentElement { id authentication title description component config style highlight navigation { ...fNavigationItem } regwall filters { ...fFilterOptions } update styleModifiers groups { id title total cursor itemSource { type id } items { ...fContentElementItem } debug @include(if: $debug) { ...fContentDebugInfo } } groupLayout debug @include(if: $debug) { ...fContentDebugInfo } } fragment fNavigationItem on NavigationItem { selected href channel { ...fChannelInfo } contentType title items { selected href channel { ...fChannelInfo } contentType title } } fragment fFilterOptions on FilterOptions { type remote categories { name title options { title id channelId } } } fragment fContentElementItem on ContentElementItem { id url info branding { ...fBrand } body config headline contentType channel { ...fChannelInfo } site picture { url } videoType orientation date duration flags genres valid { from to } epg { episode { ...fEpisode } season { ...fSeason } duration nextEpgInfo { ...fEpgInfo } } debug @include(if: $debug) { ...fContentDebugInfo } } fragment fBrand on Brand { id, name } fragment fEpisode on Episode { number } fragment fSeason on Season { number } fragment fEpgInfo on EpgInfo { time endTime primetime } fragment fContentDebugInfo on ContentDebugInfo { source transformations { description } } '}
-    parameters.update({'variables': '{{"authentication":null,"contentType":"video","debug":false,"domain":"{0}","isMobile":false,"url":"{1}"}}'.format(domain, path)})
+    if path == '/livestream':
+        parameters = {'query': 'query PreviewContentQuery($domain: String!, $url: String!, $date: DateTime, $contentType: String, $debug: Boolean!, $authentication: AuthenticationInput) { site(domain: $domain, date: $date, authentication: $authentication) { domain path(url: $url) { route { ...fRoute } page { ...fPage ...fLivestream24Page } content(type: PREVIEW, contentType: $contentType) { ...fContent } mainNav: navigation(type: MAIN) { items { ...fNavigationItem } } metaNav: navigation(type: META) { items { ...fNavigationItem } } channelNav: navigation(type: CHANNEL) { items { ...fNavigationItem } } showsNav: navigation(type: SHOWS) { items { ...fNavigationItem } } footerNav: navigation(type: FOOTER) { items { ...fNavigationItem } } networkNav: navigation(type: NETWORK) { items { ...fNavigationItem } } } } } fragment fRoute on Route { url exists authentication comment contentType name cmsId startDate status endDate } fragment fPage on Page { cmsId contentType pagination { ...fPagination } title shortTitle subheadline proMamsId additionalProMamsIds route source regWall { ...fRegWall } links { ...fLink } metadata { ...fMetadata } breadcrumbs { id href title text } channel { ...fChannel } seo { ...fSeo } modified published flags mainClassNames } fragment fPagination on Pagination { kind limit parent contentType } fragment fRegWall on RegWall { isActive start end } fragment fLink on Link { id classes language href relation title text outbound } fragment fMetadata on Metadata { property name content } fragment fChannel on Channel { name title shortName licenceTerms cssId cmsId proMamsId additionalProMamsIds route image hasLogo liftHeadings, logo sponsors { ...fSponsor } } fragment fSponsor on Sponsor { name url image } fragment fSeo on Seo { title keywords description canonical robots } fragment fLivestream24Page on Livestream24Page { ... on Livestream24Page { livestreamId contentResources epg { name items { ...fEpgItem tvShowTeaser { ...fTeaserItem } } } } } fragment fEpgItem on EpgItem { id title description startTime endTime episode { number } season { number } tvShow { title } images { url title copyright } links { href contentType title } } fragment fTeaserItem on TeaserItem { id url info headline contentType channel { ...fChannelInfo } branding { ...fBrand } site picture { url } videoType orientation date flags valid { from to } epg { episode { ...fEpisode } season { ...fSeason } duration nextEpgInfo { ...fEpgInfo } } } fragment fChannelInfo on ChannelInfo { title shortName cssId cmsId } fragment fBrand on Brand { id, name } fragment fEpisode on Episode { number } fragment fSeason on Season { number } fragment fEpgInfo on EpgInfo { time endTime primetime } fragment fContent on Content { areas { ...fContentArea } } fragment fContentArea on ContentArea { id containers { ...fContentContainer } filters { ...fFilterOptions } debug @include(if: $debug) { ...fContentDebugInfo } } fragment fContentContainer on ContentContainer { id style elements { ...fContentElement } } fragment fContentElement on ContentElement { id authentication title description component config style highlight navigation { ...fNavigationItem } regwall filters { ...fFilterOptions } update styleModifiers groups { id title total cursor itemSource { type id } items { ...fContentElementItem } debug @include(if: $debug) { ...fContentDebugInfo } } groupLayout debug @include(if: $debug) { ...fContentDebugInfo } } fragment fNavigationItem on NavigationItem { selected href channel { ...fChannelInfo } contentType title items { selected href channel { ...fChannelInfo } contentType title } } fragment fFilterOptions on FilterOptions { type remote categories { name title options { title id channelId } } } fragment fContentElementItem on ContentElementItem { id url info branding { ...fBrand } body config headline contentType channel { ...fChannelInfo } site picture { url } videoType orientation date duration flags genres valid { from to } epg { episode { ...fEpisode } season { ...fSeason } duration nextEpgInfo { ...fEpgInfo } } debug @include(if: $debug) { ...fContentDebugInfo } } fragment fContentDebugInfo on ContentDebugInfo { source transformations { description } } '}
+        parameters.update({'variables': '{{"authentication":null,"contentType":"video","debug":false,"domain":"{0}","isMobile":false,"url":"{1}"}}'.format(domain, path)})
+    else:
+        parameters = {'query': ' query PreviewContentQuery($domain: String!, $url: String!, $date: DateTime, $contentType: String, $debug: Boolean!, $authentication: AuthenticationInput) { site(domain: $domain, date: $date, authentication: $authentication) { domain path(url: $url) { route { ...fRoute } page { ...fPage ...fVideoPage } content(type: PREVIEW, contentType: $contentType) { ...fContent } mainNav: navigation(type: MAIN) { items { ...fNavigationItem } } metaNav: navigation(type: META) { items { ...fNavigationItem } } channelNav: navigation(type: CHANNEL) { items { ...fNavigationItem } } showsNav: navigation(type: SHOWS) { items { ...fNavigationItem } } footerNav: navigation(type: FOOTER) { items { ...fNavigationItem } } networkNav: navigation(type: NETWORK) { items { ...fNavigationItem } } } } } fragment fRoute on Route { url exists authentication comment contentType name cmsId startDate status endDate } fragment fPage on Page { cmsId contentType pagination { ...fPagination } title shortTitle subheadline proMamsId additionalProMamsIds route source regWall { ...fRegWall } links { ...fLink } metadata { ...fMetadata } breadcrumbs { id href title text } channel { ...fChannel } seo { ...fSeo } modified published flags mainClassNames } fragment fPagination on Pagination { kind limit parent contentType } fragment fRegWall on RegWall { isActive start end } fragment fLink on Link { id classes language href relation title text outbound } fragment fMetadata on Metadata { property name content } fragment fChannel on Channel { name title shortName licenceTerms cssId cmsId proMamsId additionalProMamsIds route image hasLogo liftHeadings, logo sponsors { ...fSponsor } } fragment fSponsor on Sponsor { name url image } fragment fSeo on Seo { title keywords description canonical robots } fragment fVideoPage on VideoPage { ... on VideoPage { copyright description longDescription duration season episode airdate videoType contentResource image webUrl livestreamStartDate livestreamEndDate recommendation { results { headline subheadline duration url image videoType contentType recoVariation recoSource channel { ...fChannelInfo } } } } } fragment fChannelInfo on ChannelInfo { title shortName cssId cmsId } fragment fContent on Content { areas { ...fContentArea } } fragment fContentArea on ContentArea { id containers { ...fContentContainer } filters { ...fFilterOptions } debug @include(if: $debug) { ...fContentDebugInfo } } fragment fContentContainer on ContentContainer { id style elements { ...fContentElement } } fragment fContentElement on ContentElement { id authentication title description component config style highlight navigation { ...fNavigationItem } regwall filters { ...fFilterOptions } update styleModifiers groups { id title total cursor itemSource { type id } items { ...fContentElementItem } debug @include(if: $debug) { ...fContentDebugInfo } } groupLayout debug @include(if: $debug) { ...fContentDebugInfo } } fragment fNavigationItem on NavigationItem { selected href channel { ...fChannelInfo } contentType title items { selected href channel { ...fChannelInfo } contentType title } } fragment fFilterOptions on FilterOptions { type remote categories { name title options { title id channelId } } } fragment fContentElementItem on ContentElementItem { id url info branding { ...fBrand } body config headline contentType channel { ...fChannelInfo } site picture { url } videoType orientation date duration flags genres valid { from to } epg { episode { ...fEpisode } season { ...fSeason } duration nextEpgInfo { ...fEpgInfo } } debug @include(if: $debug) { ...fContentDebugInfo } } fragment fBrand on Brand { id, name } fragment fEpisode on Episode { number } fragment fSeason on Season { number } fragment fEpgInfo on EpgInfo { time endTime primetime } fragment fContentDebugInfo on ContentDebugInfo { source transformations { description } } '}
+        parameters.update({'variables': '{{"authentication":null,"contentType":"livestream24","debug":false,"domain":"{0}","isMobile":false,"url":"{1}"}}'.format(domain, path)})
     url = '{0}{1}?{2}'.format(base, path, urllib.urlencode(parameters).replace('+', '%20'))
 
     result = requests.get(url).json()
@@ -115,7 +213,7 @@ def getListItems(data, type, domain=None, path=None, cmsId=None):
                                 if type == 'show':
                                     items.append(getContentInfos(groupitem, 'show'))
                                 elif cmsId and groupitem.get('channel').get('cmsId') == cmsId:
-                                    if not groupitem.get('videoType') and groupitem.get('headline').lower().startswith('staffel') or groupitem.get('headline').lower().startswith('season'):
+                                    if not groupitem.get('videoType') and groupitem.get('headline') and (groupitem.get('headline').lower().startswith('staffel') or groupitem.get('headline').lower().startswith('season')):
                                         items.append(getContentInfos(groupitem, 'season'))
                                     elif groupitem.get('videoType') and groupitem.get('videoType').lower() == 'full':
                                         items.append(getContentInfos(groupitem, 'episode'))
@@ -135,40 +233,94 @@ def getShownav(data):
     return items
                 
 def getContentInfos(data, type):
-    infos = {'url': data.get('url') if data.get('url') else data.get('href'), 'type': type}
+    infos = {}
+    if type == 'live':
+        now_item = None
+        next_item = None
+        for index, item in enumerate(data.get('items')):
+            now = datetime.utcnow()
 
-    if type == 'episode':
-        title = data.get('headline')
-        if title.find('Originalversion') > 1:
-            title = title.replace('Originalversion', 'OV')
-        if title.find(':') > -1 and title.find('Episode') > -1 or title.find('Folge') > -1:
-            title = title.split(':')[1]
-        infoLabels = {'title': title}
-        infoLabels.update({'tvShowTitle': data.get('channel').get('title')})
-        season = data.get('epg').get('season').get('number')
-        if season.startswith('s'):
-            season = season.split('s', 1)[1]
-        infoLabels.update({'season': int(season)})
-        episode = data.get('epg').get('episode').get('number')
-        if episode.startswith('e'):
-            episode = episode.split('e', 1)[1]
-        infoLabels.update({'episode': int(episode)})
-        infoLabels.update({'duration': data.get('epg').get('duration')})
-        infoLabels.update({'mediatype': 'episode'})
-    elif type == 'season':
-        infoLabels = {'title': data.get('headline').split(':')[0] if data.get('headline') else data.get('title').split(':')[0]}
-    elif type == 'show':
-        infoLabels = {'title': data.get('channel').get('shortName') if data.get('channel').get('shortName') else data.get('headline')}
-        infos.update({'cmsId': data.get('id')})
+            start_time = datetime.fromtimestamp(time.mktime(time.strptime(item.get('startTime'), '%Y-%m-%dT%H:%M:%S.%fZ')))
+            end_time = datetime.fromtimestamp(time.mktime(time.strptime(item.get('endTime'), '%Y-%m-%dT%H:%M:%S.%fZ')))
 
-    infoLabels.update({'plot': data.get('info').encode('utf-8') if data.get('info', None) else None})    
-    infos.update({'infoLabels' : infoLabels})
+            infos.update({'stime': start_time})
+            infos.update({'etime': end_time})
+            if (now >= start_time) and (now <= end_time):
+                now_item = item
+                next_item = data.get('items')[index + 1]
+                break
+        
+        if now_item:
+            infoLabels = {'title': now_item.get('title')}
+            if now_item.get('tvShow'):
+                if not infoLabels.get('title'):
+                    infoLabels.update({'title': now_item.get('tvShow').get('title')})
+                infoLabels.update({'tvShowTitle': now_item.get('tvShow').get('title')})
+                infoLabels.update({'mediatype': 'episode'})
+                
+            infoLabels.update({'season': now_item.get('season').get('number')})
+            infoLabels.update({'episode': now_item.get('episode').get('number')})
+            
+            local_start_time = utc_to_local(infos.get('stime'))
+            local_end_time = utc_to_local(infos.get('etime'))
+            plot = '{0} - {1}'.format(local_start_time.strftime('%H:%M'), local_end_time.strftime('%H:%M'))
+            if next_item:
+                next_title = next_item.get('title').encode('utf-8') if next_item.get('title') else None
+                next_show = next_item.get('tvShow').get('title').encode('utf-8') if next_item.get('tvShow') else ''
+                
+                plot += '\nDanach: [COLOR blue]{0}[/COLOR] {1}'.format(next_show, next_title) if next_title and next_show != '' and next_title != next_show else '\nDanach: {0}'.format(next_title if next_title else next_show)
 
-    if data.get('picture'):
-        art = {'thumb': '{0}{1}'.format(data.get('picture').get('url'), '/profile:mag-648x366')}
-        infos.update({'art' : art})
+            plot += '\n\n'
+            plot += now_item.get('description').encode('utf-8') if now_item.get('description') else ''
+            infoLabels.update({'plot': plot})
+            
+            if now_item.get('images') and len(now_item.get('images')) > 0:
+                art = {'thumb': '{0}{1}'.format(now_item.get('images')[0].get('url'), '/profile:mag-648x366')}
+                infos.update({'art' : art})
+
+            infos.update({'infoLabels' : infoLabels})    
+    else:
+        infos.update({'url': data.get('url') if data.get('url') else data.get('href'), 'type': type})
+    
+        if type == 'episode':
+            title = data.get('headline')
+            if title.find('Originalversion') > 1:
+                title = title.replace('Originalversion', 'OV')
+            if title.find(':') > -1 and (title.find('Episode') > -1 or title.find('Folge') > -1):
+                title = title.split(':')[1]
+            infoLabels = {'title': title}
+            infoLabels.update({'tvShowTitle': data.get('channel').get('title')})
+            season = data.get('epg').get('season').get('number')
+            if season.startswith('s'):
+                season = season.split('s', 1)[1]
+            infoLabels.update({'season': int(season)})
+            episode = data.get('epg').get('episode').get('number')
+            if episode.startswith('e'):
+                episode = episode.split('e', 1)[1]
+            infoLabels.update({'episode': int(episode)})
+            infoLabels.update({'duration': data.get('epg').get('duration')})
+            infoLabels.update({'mediatype': 'episode'})
+        elif type == 'season':
+            infoLabels = {'title': data.get('headline').split(':')[0] if data.get('headline') else data.get('title').split(':')[0]}
+        elif type == 'show':
+            infoLabels = {'title': data.get('channel').get('shortName') if data.get('channel').get('shortName') else data.get('headline')}
+            infos.update({'cmsId': data.get('id')})
+    
+        infoLabels.update({'plot': data.get('info').encode('utf-8') if data.get('info', None) else None})    
+        infos.update({'infoLabels' : infoLabels})
+    
+        if data.get('picture'):
+            art = {'thumb': '{0}{1}'.format(data.get('picture').get('url'), '/profile:mag-648x366')}
+            infos.update({'art' : art})        
 
     return infos
+
+def utc_to_local(utc_dt):
+    # get integer timestamp to avoid precision lost
+    timestamp = calendar.timegm(utc_dt.timetuple())
+    local_dt = datetime.fromtimestamp(timestamp)
+    assert utc_dt.resolution >= timedelta(microseconds=1)
+    return local_dt.replace(microsecond=utc_dt.microsecond)
 
 def getVideoId(data):
     videoid = None
@@ -262,23 +414,93 @@ def playVideo(entry):
         li.setInfo('video', entry.get('infoLabels'))
 
     xbmcplugin.setResolvedUrl(addon_handle, True, li)
+    
+def playLive(entry):
+    # Inputstream and DRM
+    helper = Helper(protocol='mpd', drm='widevine')
+    if helper.check_inputstream() == False:
+        return
 
-def index():
-    entries = [
-                  {'title': 'ProSieben', 'domain': 'prosieben.de', 'path': '/tv', 'art': {'icon': os.path.join(addonPath, 'resources/media/channels/prosieben.png')}},
-                  {'title': 'Sat.1', 'domain': 'sat1.de', 'path': '/tv', 'art': {'icon': os.path.join(addonPath, 'resources/media/channels/sat1.png')}},
-                  {'title': 'ProSieben MAXX', 'domain': 'prosiebenmaxx.de', 'path': '/tv', 'art': {'icon': os.path.join(addonPath, 'resources/media/channels/prosiebenmaxx.png')}},
-                  {'title': 'Kabel Eins', 'domain': 'kabeleins.de', 'path': '/tv', 'art': {'icon': os.path.join(addonPath, 'resources/media/channels/kabeleins.png')}},
-                  {'title': 'kabel eins Doku', 'domain': 'kabeleinsdoku.de', 'path': '/tv', 'art': {'icon': os.path.join(addonPath, 'resources/media/channels/kabeleinsdoku.png')}},
-                  {'title': 'Sixx', 'domain': 'sixx.de', 'path': '/tv', 'art': {'icon': os.path.join(addonPath, 'resources/media/channels/sixx.png')}},
-                  {'title': 'Sat.1 Gold', 'domain': 'sat1gold.de', 'path': '/tv', 'art': {'icon': os.path.join(addonPath, 'resources/media/channels/sat1gold.png')}}
-              ]
-    for entry in entries:
-        parameter = {'action': 'shows', 'entry': entry}
-        addDir(entry.get('title'), build_url(parameter), art=entry.get('art'))
+    url = 'https://vas-live-mdp.glomex.com/live/1.0/getprotocols?%s' % (urllib.urlencode({
+        'access_token': entry.get('access_token'),
+        'client_location':  entry.get('client_location'),
+        'property_name':  entry.get('property_name'),
+        'client_token':  entry.get('client_token'),
+        'secure_delivery': 'true'
+    }))
 
-    #xbmcplugin.setContent(addon_handle, 'tvshows')
-    xbmcplugin.endOfDirectory(addon_handle)
+    data = requests.get(url).json()
+
+    server_token = data.get('server_token')
+    salt = '01!8d8F_)r9]4s[qeuXfP%'
+    client_token = salt[:2] + sha1(''.join([ entry.get('property_name'), salt,  entry.get('access_token'), server_token,  entry.get('client_location'), 'dash:widevine']).encode('utf-8')).hexdigest()
+
+    url = 'https://vas-live-mdp.glomex.com/live/1.0/geturls?%s' % (urllib.urlencode({
+        'access_token':  entry.get('access_token'),
+        'client_location':  entry.get('client_location'),
+        'property_name':  entry.get('property_name'),
+        'protocols': 'dash:widevine',
+        'server_token': server_token,
+        'client_token': client_token,
+        'secure_delivery': 'true'
+    }))
+
+    data = requests.get(url).json()['urls']['dash']['widevine']
+
+    li = xbmcgui.ListItem(path=data['url'] + "|" + userAgent)
+    li.setProperty('inputstream.adaptive.license_type', 'com.widevine.alpha')
+    li.setProperty('inputstream.adaptive.manifest_type', 'mpd')
+    li.setProperty('inputstream.adaptive.manifest_update_parameter', 'full')
+    li.setProperty('inputstreamaddon', 'inputstream.adaptive')
+
+    try:
+        lic = data['drm']['licenseAcquisitionUrl']
+        token = data['drm']['token']
+        li.setProperty('inputstream.adaptive.license_key', '%s?token=%s|%s|R{SSM}|' % (lic, token, userAgent))
+    except:
+        pass
+
+    xbmcplugin.setResolvedUrl(addon_handle, True, li)
+    
+def rootDir():
+    for dir in rootDirs:
+        if not dir.get('channels'):
+            url = build_url({'action': dir.get('action')})
+            addDir(dir.get('label'), url)
+        else:
+            channels = dir.get('channels')
+            for channel in channels:
+                parameter = {'action': 'shows', 'entry': channel}
+                addDir(channel.get('label'), build_url(parameter), art=channel.get('art'))
+
+    xbmcplugin.endOfDirectory(addon_handle, cacheToDisc=True)
+
+def listLiveChannels():
+    content = getContentPreview(channels[0].get('domain'), '/livestream')
+    epg_data = None
+    if content.get('data') and content.get('data').get('site') and content.get('data').get('site').get('path') and content.get('data').get('site').get('path').get('page') and content.get('data').get('site').get('path').get('page').get('epg'):
+        epg_data = content.get('data').get('site').get('path').get('page').get('epg')
+
+    addDir('Aktualisieren', 'xbmc.executebuiltin("Container.Refresh")', infoLabels={'plot': 'Aktualisieren'})
+    for channel in channels:
+        thumbnailImage = None
+        if channel.get('property_name', None) and epg_data:
+            infoLabels = None
+            art = None
+            for epg in epg_data:
+                if epg.get('name').lower() == channel.get('epg_name').lower():
+                    infos = getContentInfos(epg, 'live')
+                    infoLabels = infos.get('infoLabels')
+                    art = infos.get('art')
+
+            channel.update({'infoLabels': infoLabels, 'art': art})
+            url = build_url({'action': 'playlive', 'entry': channel})
+            title = infoLabels.get('title') if infoLabels.get('tvShowTitle', None) is None or infoLabels.get('tvShowTitle') == infoLabels.get('title') else '[COLOR blue]' + infoLabels.get('tvShowTitle') + '[/COLOR] ' + infoLabels.get('title')
+            title = '[COLOR orange][%s][/COLOR] %s' % (channel.get('label'), title)
+            addFile(title, url, art=art, infoLabels=infoLabels)
+
+    xbmcplugin.setContent(addon_handle, 'files')
+    xbmcplugin.endOfDirectory(addon_handle, cacheToDisc=False)
 
 def addDir(label, url, art={}, infoLabels={}):
     addFile(label, url, art, infoLabels, True)
@@ -303,11 +525,15 @@ if len(params) > 0:
 xbmc.log('params = {0}'.format(params))
 if 'action' in params:
     action = params.get('action')
-    if(action == 'shows'):
+    if action == 'livechannels':
+        listLiveChannels()
+    elif action == 'shows':
         listShows(params.get('entry'))
-    elif(action == 'showcontent'):
+    elif action == 'showcontent':
         listShowcontent(params.get('entry'))
-    elif(action == 'play'):
+    elif action == 'play':
         playVideo(params.get('entry'))
+    elif action == 'playlive':
+        playLive(params.get('entry'))
 else:
-    index()
+    rootDir()
