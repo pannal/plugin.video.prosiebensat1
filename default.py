@@ -144,6 +144,12 @@ def listShowcontent(entry):
                 url = build_url({'action': 'showcontent', 'entry': {'domain': entry.get('domain'), 'path': entry.get('path'), 'cmsId': entry.get('cmsId'), 'seasonno': season}})
                 addDir('Staffel {0}'.format(season), url, art=entry.get('art'), infoLabels=entry.get('infoLabels'))
                 xbmcplugin.setContent(addon_handle, 'tvshows')
+
+            noseasons = [item for item in items if not item.get('infoLabels', {}).get('season')]
+            if len(noseasons) > 0:
+                url = build_url({'action': 'showcontent', 'entry': {'domain': entry.get('domain'), 'path': entry.get('path'), 'cmsId': entry.get('cmsId'), 'seasonno': None}})
+                addDir('Videos ohne Staffelzuordnung', url, art=entry.get('art'), infoLabels=entry.get('infoLabels'))
+                xbmcplugin.setContent(addon_handle, 'tvshows')
         else:
             for item in items:
                 infoLabels = item.get('infoLabels', {})
@@ -153,6 +159,8 @@ def listShowcontent(entry):
                     xbmcplugin.setContent(addon_handle, 'tvshows')
                 else:
                     if entry.get('seasonno') and infoLabels.get('season') != int(entry.get('seasonno')):
+                        continue
+                    elif not entry.get('seasonno') and infoLabels.get('season'):
                         continue
                     url = build_url({'action': 'play', 'entry': {'domain': entry.get('domain'), 'path': item.get('url')}})
                     addFile(infoLabels.get('title'), url, art=item.get('art', {}), infoLabels=infoLabels)
@@ -233,6 +241,7 @@ def getShownav(data):
     return items
                 
 def getContentInfos(data, type):
+    xbmc.log('data = {0}'.format(data))
     infos = {}
     if type == 'live':
         now_item = None
@@ -291,13 +300,15 @@ def getContentInfos(data, type):
             infoLabels = {'title': title}
             infoLabels.update({'tvShowTitle': data.get('channel').get('title')})
             season = data.get('epg').get('season').get('number')
-            if season.startswith('s'):
+            if season and season.startswith('s'):
                 season = season.split('s', 1)[1]
-            infoLabels.update({'season': int(season)})
+            if season:
+                infoLabels.update({'season': int(season)})
             episode = data.get('epg').get('episode').get('number')
-            if episode.startswith('e'):
+            if episode and episode.startswith('e'):
                 episode = episode.split('e', 1)[1]
-            infoLabels.update({'episode': int(episode)})
+            if episode:
+                infoLabels.update({'episode': int(episode)})
             infoLabels.update({'duration': data.get('epg').get('duration')})
             infoLabels.update({'mediatype': 'episode'})
         elif type == 'season':
