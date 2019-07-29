@@ -123,7 +123,7 @@ rootDirs = [
 def listShows(entry):
     content = getContentFull(entry.get('domain'), entry.get('path'))
     if content and len(content) > 0:
-        shows = getListItems(content.get('data', None), 'show')
+        shows = getListItems(content.get('data', None), 'show').get('items')
         for show in shows:
             infoLabels = show.get('infoLabels', {})
             art = show.get('art')
@@ -137,9 +137,10 @@ def listShows(entry):
 def listShowcontent(entry):
     content = getContentFull(entry.get('domain'), entry.get('path'))
     if content and len(content) > 0:
-        items = getListItems(content.get('data', None), entry.get('type'), entry.get('domain'), entry.get('path'), entry.get('cmsId'))
+        detail = getListItems(content.get('data', None), entry.get('type'), entry.get('domain'), entry.get('path'), entry.get('cmsId'))
+        items = detail.get('items')
         seasons = sorted(list(dict.fromkeys(['{0}'.format(item.get('infoLabels', {}).get('season')) for item in items if item.get('infoLabels', {}).get('season')])))
-        if entry.get('type') == 'season' and len(seasons) > 1:
+        if detail.get('type') == 'season' and len(seasons) > 1:
             for season in seasons:
                 url = build_url({'action': 'showcontent', 'entry': {'domain': entry.get('domain'), 'path': entry.get('path'), 'cmsId': entry.get('cmsId'), 'seasonno': season}})
                 addDir('Staffel {0}'.format(season), url, art=entry.get('art'), infoLabels=entry.get('infoLabels'))
@@ -153,14 +154,14 @@ def listShowcontent(entry):
         else:
             for item in items:
                 infoLabels = item.get('infoLabels', {})
-                if item.get('type') == 'season':
+                if detail.get('type') == 'season':
                     url = build_url({'action': 'showcontent', 'entry': {'domain': entry.get('domain'), 'path': item.get('url'), 'cmsId': entry.get('cmsId')}})
                     addDir(infoLabels.get('title'), url, art=item.get('art'), infoLabels=infoLabels)
                     xbmcplugin.setContent(addon_handle, 'tvshows')
                 else:
-                    if entry.get('seasonno') and infoLabels.get('season') != int(entry.get('seasonno')):
+                    if detail.get('type') != 'episode' and entry.get('seasonno') and infoLabels.get('season') != int(entry.get('seasonno')):
                         continue
-                    elif not entry.get('seasonno') and infoLabels.get('season'):
+                    elif detail.get('type') != 'episode' and not entry.get('seasonno') and infoLabels.get('season'):
                         continue
                     url = build_url({'action': 'play', 'entry': {'domain': entry.get('domain'), 'path': item.get('url')}})
                     addFile(infoLabels.get('title'), url, art=item.get('art', {}), infoLabels=infoLabels)
@@ -175,7 +176,7 @@ def getContentFull(domain, path):
     parameters = {'query': ' query FullContentQuery($domain: String!, $url: String!, $date: DateTime, $contentType: String, $debug: Boolean!, $authentication: AuthenticationInput) { site(domain: $domain, date: $date, authentication: $authentication) { domain path(url: $url) { content(type: FULL, contentType: $contentType) { ...fContent } somtag(contentType: $contentType) { ...fSomtag } tracking(contentType: $contentType) { ...fTracking } } } } fragment fContent on Content { areas { ...fContentArea } } fragment fContentArea on ContentArea { id containers { ...fContentContainer } filters { ...fFilterOptions } debug @include(if: $debug) { ...fContentDebugInfo } } fragment fContentContainer on ContentContainer { id style elements { ...fContentElement } } fragment fContentElement on ContentElement { id authentication title description component config style highlight navigation { ...fNavigationItem } regwall filters { ...fFilterOptions } update styleModifiers groups { id title total cursor itemSource { type id } items { ...fContentElementItem } debug @include(if: $debug) { ...fContentDebugInfo } } groupLayout debug @include(if: $debug) { ...fContentDebugInfo } } fragment fNavigationItem on NavigationItem { selected href channel { ...fChannelInfo } contentType title items { selected href channel { ...fChannelInfo } contentType title } } fragment fChannelInfo on ChannelInfo { title shortName cssId cmsId } fragment fFilterOptions on FilterOptions { type remote categories { name title options { title id channelId } } } fragment fContentElementItem on ContentElementItem { id url info branding { ...fBrand } body config headline contentType channel { ...fChannelInfo } site picture { url } videoType orientation date duration flags genres valid { from to } epg { episode { ...fEpisode } season { ...fSeason } duration nextEpgInfo { ...fEpgInfo } } debug @include(if: $debug) { ...fContentDebugInfo } } fragment fBrand on Brand { id, name } fragment fEpisode on Episode { number } fragment fSeason on Season { number } fragment fEpgInfo on EpgInfo { time endTime primetime } fragment fContentDebugInfo on ContentDebugInfo { source transformations { description } } fragment fSomtag on Somtag { configs } fragment fTracking on Tracking { context }'}
     parameters.update({'variables': '{{"authentication":null,"contentType":"frontpage","debug":false,"domain":"{0}","isMobile":false,"url":"{1}"}}'.format(domain, path)})
     url = '{0}?{1}'.format(base, urllib.urlencode(parameters).replace('+', '%20'))
-
+    xbmc.log('url = {0}'.format(url))
     result = requests.get(url).json()
     if result and path.endswith('/video') and result.get('data', None) and result.get('data').get('site', None) and result.get('data').get('site').get('path', None) and not result.get('data').get('site').get('path').get('somtag'):
         result = getContentFull(domain, '{0}s'.format(path))
@@ -190,23 +191,22 @@ def getContentPreview(domain, path):
         parameters = {'query': ' query PreviewContentQuery($domain: String!, $url: String!, $date: DateTime, $contentType: String, $debug: Boolean!, $authentication: AuthenticationInput) { site(domain: $domain, date: $date, authentication: $authentication) { domain path(url: $url) { route { ...fRoute } page { ...fPage ...fVideoPage } content(type: PREVIEW, contentType: $contentType) { ...fContent } mainNav: navigation(type: MAIN) { items { ...fNavigationItem } } metaNav: navigation(type: META) { items { ...fNavigationItem } } channelNav: navigation(type: CHANNEL) { items { ...fNavigationItem } } showsNav: navigation(type: SHOWS) { items { ...fNavigationItem } } footerNav: navigation(type: FOOTER) { items { ...fNavigationItem } } networkNav: navigation(type: NETWORK) { items { ...fNavigationItem } } } } } fragment fRoute on Route { url exists authentication comment contentType name cmsId startDate status endDate } fragment fPage on Page { cmsId contentType pagination { ...fPagination } title shortTitle subheadline proMamsId additionalProMamsIds route source regWall { ...fRegWall } links { ...fLink } metadata { ...fMetadata } breadcrumbs { id href title text } channel { ...fChannel } seo { ...fSeo } modified published flags mainClassNames } fragment fPagination on Pagination { kind limit parent contentType } fragment fRegWall on RegWall { isActive start end } fragment fLink on Link { id classes language href relation title text outbound } fragment fMetadata on Metadata { property name content } fragment fChannel on Channel { name title shortName licenceTerms cssId cmsId proMamsId additionalProMamsIds route image hasLogo liftHeadings, logo sponsors { ...fSponsor } } fragment fSponsor on Sponsor { name url image } fragment fSeo on Seo { title keywords description canonical robots } fragment fVideoPage on VideoPage { ... on VideoPage { copyright description longDescription duration season episode airdate videoType contentResource image webUrl livestreamStartDate livestreamEndDate recommendation { results { headline subheadline duration url image videoType contentType recoVariation recoSource channel { ...fChannelInfo } } } } } fragment fChannelInfo on ChannelInfo { title shortName cssId cmsId } fragment fContent on Content { areas { ...fContentArea } } fragment fContentArea on ContentArea { id containers { ...fContentContainer } filters { ...fFilterOptions } debug @include(if: $debug) { ...fContentDebugInfo } } fragment fContentContainer on ContentContainer { id style elements { ...fContentElement } } fragment fContentElement on ContentElement { id authentication title description component config style highlight navigation { ...fNavigationItem } regwall filters { ...fFilterOptions } update styleModifiers groups { id title total cursor itemSource { type id } items { ...fContentElementItem } debug @include(if: $debug) { ...fContentDebugInfo } } groupLayout debug @include(if: $debug) { ...fContentDebugInfo } } fragment fNavigationItem on NavigationItem { selected href channel { ...fChannelInfo } contentType title items { selected href channel { ...fChannelInfo } contentType title } } fragment fFilterOptions on FilterOptions { type remote categories { name title options { title id channelId } } } fragment fContentElementItem on ContentElementItem { id url info branding { ...fBrand } body config headline contentType channel { ...fChannelInfo } site picture { url } videoType orientation date duration flags genres valid { from to } epg { episode { ...fEpisode } season { ...fSeason } duration nextEpgInfo { ...fEpgInfo } } debug @include(if: $debug) { ...fContentDebugInfo } } fragment fBrand on Brand { id, name } fragment fEpisode on Episode { number } fragment fSeason on Season { number } fragment fEpgInfo on EpgInfo { time endTime primetime } fragment fContentDebugInfo on ContentDebugInfo { source transformations { description } } '}
         parameters.update({'variables': '{{"authentication":null,"contentType":"livestream24","debug":false,"domain":"{0}","isMobile":false,"url":"{1}"}}'.format(domain, path)})
     url = '{0}{1}?{2}'.format(base, path, urllib.urlencode(parameters).replace('+', '%20'))
-
+    xbmc.log('url = {0}'.format(url))
     result = requests.get(url).json()
-    if result and path.endswith('/video') and result.get('data', None) and result.get('data').get('site', None) and result.get('data').get('site').get('path', None) and result.get('data').get('site').get('path').get('somtag', None) and result.get('data').get('site').get('path').get('route').get('status').lower() == 'not_found':
-        result = getContentFull(domain, '{0}s'.format(path))
+    if result and path.endswith('/video') and result.get('data', None) and result.get('data').get('site', None) and result.get('data').get('site').get('path', None) and result.get('data').get('site').get('path').get('route').get('status').lower() == 'not_found':
+        result = getContentPreview(domain, '{0}s'.format(path))
     return result
 
-def getListItems(data, type, domain=None, path=None, cmsId=None):
-    items = []
-    if type == 'season':
-        content = getContentPreview(domain, path)
-        links = getShownav(content.get('data', None))
-        if len(links) > 0:
-            for link in links:
-                items.append(getContentInfos(link, 'season'))
+def getListItems(data, type, domain=None, path=None, cmsId=None, content=None):
+    if not content:
+        content = {'items': []}
 
-    if len(items) == 0 and data.get('site', None) and data.get('site').get('path', None) and data.get('site').get('path').get('content', None) and data.get('site').get('path').get('content').get('areas', None):
-        areas = data.get('site').get('path').get('content', None).get('areas')
+    if type == 'season':
+        subcontent = getContentPreview(domain, path)
+        content = getShownav(subcontent.get('data', None), content, domain, cmsId)
+
+    if (len(content.get('items')) == 0 or content.get('type') == 'episode') and data.get('site', None) and data.get('site').get('path', None) and data.get('site').get('path').get('content', None) and data.get('site').get('path').get('content').get('areas', None):
+        areas = data.get('site').get('path').get('content').get('areas')
         if len(areas) > 0:
             containers = areas[0].get('containers')
             for container in containers:
@@ -218,30 +218,50 @@ def getListItems(data, type, domain=None, path=None, cmsId=None):
                         groupitems = groups[0].get('items', None)
                         if groupitems:
                             for groupitem in groupitems:
+                                citems = content.get('items')
                                 if type == 'show':
-                                    items.append(getContentInfos(groupitem, 'show'))
+                                    item = getContentInfos(groupitem, 'show')
+                                    if checkItemUrlExists(citems, item) == False:
+                                        citems.append(item)
+                                        content.update({'items': citems})
                                 elif cmsId and groupitem.get('channel').get('cmsId') == cmsId:
                                     if not groupitem.get('videoType') and groupitem.get('headline') and (groupitem.get('headline').lower().startswith('staffel') or groupitem.get('headline').lower().startswith('season')):
-                                        items.append(getContentInfos(groupitem, 'season'))
+                                        content.update({'type': 'season'})
+                                        item = getContentInfos(groupitem, 'season')
+                                        if checkItemUrlExists(citems, item) == False:
+                                            citems.append(item)
+                                            content.update({'items': citems})
                                     elif groupitem.get('videoType') and groupitem.get('videoType').lower() == 'full':
-                                        items.append(getContentInfos(groupitem, 'episode'))
+                                        content.update({'type': 'episode'})
+                                        item = getContentInfos(groupitem, 'episode')
+                                        if checkItemUrlExists(citems, item) == False:
+                                            citems.append(item)
+                                            content.update({'items': citems})
 
-    return items   
+    if not content.get('type'):
+        content.update({'type': type})
 
-def getShownav(data):
-    items = []
+    return content   
+
+def getShownav(data, content, domain, cmsId):
     if data.get('site', None) and data.get('site').get('path', None) and data.get('site').get('path').get('channelNav', None) and data.get('site').get('path').get('channelNav').get('items', None):
         channelitems = data.get('site').get('path').get('channelNav').get('items')
         for channelitem in channelitems:
-            if channelitem.get('title').lower() == 'video':
+            if channelitem.get('title').lower() == 'video' or channelitem.get('title').lower() == 'videos':
                 for channelsubitem in channelitem.get('items'):
-                    if channelsubitem.get('title').lower().startswith('staffel'):
-                        items.append(channelsubitem)
+                    if channelsubitem.get('title').lower().startswith('staffel') or channelsubitem.get('title').lower().startswith('season'):
+                        content.update({'type': 'show'})
+                        citems = content.get('items')
+                        citems.append(channelsubitem)
+                        content.update({'items': citems})
+                    elif channelsubitem.get('title').lower().startswith('episode') or channelsubitem.get('title').lower().startswith('folge'):
+                        subcontent = getContentFull(domain, channelsubitem.get('href'))
+                        content = getListItems(subcontent.get('data'), 'episode', domain, channelsubitem.get('href'), cmsId, content)
+                        content.update({'type': 'episode'})
 
-    return items
+    return content
                 
 def getContentInfos(data, type):
-    xbmc.log('data = {0}'.format(data))
     infos = {}
     if type == 'live':
         now_item = None
@@ -526,6 +546,13 @@ def addFile(label, url, art={}, infoLabels={}, isFolder=False):
 
 def build_url(query):
     return pluginBaseUrl + '?' + base64.urlsafe_b64encode(json.dumps(query))
+
+def checkItemUrlExists(items, compItem):
+    for item in items:
+        if item.get('url') == compItem.get('url'):
+            return True
+
+    return False
 
 params = urllib.unquote(sys.argv[2][1:])
 if len(params) > 0:
