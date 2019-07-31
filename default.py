@@ -139,29 +139,37 @@ def listShowcontent(entry):
     if content and len(content) > 0:
         detail = getListItems(content.get('data', None), entry.get('type'), entry.get('domain'), entry.get('path'), entry.get('cmsId'))
         items = detail.get('items')
+
         seasons = sorted(list(dict.fromkeys(['{0}'.format(item.get('infoLabels', {}).get('season')) for item in items if item.get('infoLabels', {}).get('season')])))
-        if detail.get('type') == 'season' and len(seasons) > 1:
+        if detail.get('type') == 'episode' and entry.get('type') == 'season' and len(seasons) > 1:
             for season in seasons:
-                url = build_url({'action': 'showcontent', 'entry': {'domain': entry.get('domain'), 'path': entry.get('path'), 'cmsId': entry.get('cmsId'), 'seasonno': season}})
+                url = build_url({'action': 'showcontent', 'entry': {'domain': entry.get('domain'), 'path': entry.get('path'), 'cmsId': entry.get('cmsId'), 'seasonno': season, 'type': 'episode'}})
                 addDir('Staffel {0}'.format(season), url, art=entry.get('art'), infoLabels=entry.get('infoLabels'))
                 xbmcplugin.setContent(addon_handle, 'tvshows')
 
             noseasons = [item for item in items if not item.get('infoLabels', {}).get('season')]
             if len(noseasons) > 0:
-                url = build_url({'action': 'showcontent', 'entry': {'domain': entry.get('domain'), 'path': entry.get('path'), 'cmsId': entry.get('cmsId'), 'seasonno': None}})
+                url = build_url({'action': 'showcontent', 'entry': {'domain': entry.get('domain'), 'path': entry.get('path'), 'cmsId': entry.get('cmsId'), 'seasonno': None, 'type': 'episode'}})
                 addDir('Videos ohne Staffelzuordnung', url, art=entry.get('art'), infoLabels=entry.get('infoLabels'))
                 xbmcplugin.setContent(addon_handle, 'tvshows')
         else:
             for item in items:
                 infoLabels = item.get('infoLabels', {})
                 if detail.get('type') == 'season':
-                    url = build_url({'action': 'showcontent', 'entry': {'domain': entry.get('domain'), 'path': item.get('url'), 'cmsId': entry.get('cmsId')}})
-                    addDir(infoLabels.get('title'), url, art=item.get('art'), infoLabels=infoLabels)
+                    entry_infoLabels = entry.get('infoLabels', {})
+                    infoLabels.update({'plot': entry_infoLabels.get('plot')})
+
+                    url = build_url({'action': 'showcontent', 'entry': {'domain': entry.get('domain'), 'path': item.get('url'), 'cmsId': entry.get('cmsId'), 'seasonno': infoLabels.get('season')}})
+                    addDir('Staffel {0}'.format(infoLabels.get('season')), url, art=entry.get('art'), infoLabels=infoLabels)
                     xbmcplugin.setContent(addon_handle, 'tvshows')
                 else:
                     if detail.get('type') != 'episode' and entry.get('seasonno') and infoLabels.get('season') != int(entry.get('seasonno')):
                         continue
                     elif detail.get('type') != 'episode' and not entry.get('seasonno') and infoLabels.get('season'):
+                        continue
+                    elif entry.get('type') == 'episode' and entry.get('seasonno') and infoLabels.get('season') != int(entry.get('seasonno')):
+                        continue
+                    elif entry.get('type') == 'episode' and not entry.get('seasonno') and infoLabels.get('season'):
                         continue
                     url = build_url({'action': 'play', 'entry': {'domain': entry.get('domain'), 'path': item.get('url')}})
                     addFile(infoLabels.get('title'), url, art=item.get('art', {}), infoLabels=infoLabels)
@@ -249,12 +257,12 @@ def getShownav(data, content, domain, cmsId):
         for channelitem in channelitems:
             if channelitem.get('title').lower() == 'video' or channelitem.get('title').lower() == 'videos':
                 for channelsubitem in channelitem.get('items'):
-                    if channelsubitem.get('title').lower().startswith('staffel') or channelsubitem.get('title').lower().startswith('season'):
-                        content.update({'type': 'show'})
+                    if channelsubitem.get('title').lower().find('staffel') > -1 or channelsubitem.get('title').lower().find('season') > -1:
+                        content.update({'type': 'season'})
                         citems = content.get('items')
-                        citems.append(channelsubitem)
+                        citems.append(getContentInfos(channelsubitem, 'season'))
                         content.update({'items': citems})
-                    elif channelsubitem.get('title').lower().startswith('episode') or channelsubitem.get('title').lower().startswith('folge'):
+                    elif channelsubitem.get('title').lower().find('episode') > -1 or channelsubitem.get('title').lower().find('folge') > -1:
                         subcontent = getContentFull(domain, channelsubitem.get('href'))
                         content = getListItems(subcontent.get('data'), 'episode', domain, channelsubitem.get('href'), cmsId, content)
                         content.update({'type': 'episode'})
@@ -313,31 +321,56 @@ def getContentInfos(data, type):
     
         if type == 'episode':
             title = data.get('headline')
-            if title.find('Originalversion') > 1:
+            if title.find('Originalversion') > -1:
                 title = title.replace('Originalversion', 'OV')
-            if title.find(':') > -1 and (title.find('Episode') > -1 or title.find('Folge') > -1):
-                title = title.split(':')[1]
+            if (title.lower().find('episode') > -1 or title.lower().find('folge') > -1) and title.find(':') > -1:
+                splits = title.split(':', 1)
+                for split in splits:
+                    if split.lower().find('episode') == -1 and split.lower().find('folge') == -1:
+                        title = split.strip()
+                        break
             infoLabels = {'title': title}
             infoLabels.update({'tvShowTitle': data.get('channel').get('title')})
-            season = data.get('epg').get('season').get('number')
-            if season and season.startswith('s'):
-                season = season.split('s', 1)[1]
-            if season:
-                infoLabels.update({'season': int(season)})
-            episode = data.get('epg').get('episode').get('number')
-            if episode and episode.startswith('e'):
-                episode = episode.split('e', 1)[1]
-            if episode:
-                infoLabels.update({'episode': int(episode)})
+            season_match = re.search('(staffel|season)[\S](\d+)', infos.get('url'))
+            if season_match:
+                infoLabels.update({'season': int(season_match.group(2))})
+            episode_match = re.search('(episode|folge)\S(\d+)', infos.get('url'))
+            if episode_match:
+                infoLabels.update({'episode': int(episode_match.group(2))})
+            if not infoLabels.get('season'):
+                season = data.get('epg').get('season').get('number')
+                if season and season.startswith('s'):
+                    season = season.split('s', 1)[1]
+                if season:
+                    infoLabels.update({'season': int(season)})
+            if not infoLabels.get('episode'):
+                episode = data.get('epg').get('episode').get('number')
+                if episode and episode.startswith('e'):
+                    episode = episode.split('e', 1)[1]
+                if episode:
+                    infoLabels.update({'episode': int(episode)})
             infoLabels.update({'duration': data.get('epg').get('duration')})
             infoLabels.update({'mediatype': 'episode'})
         elif type == 'season':
-            infoLabels = {'title': data.get('headline').split(':')[0] if data.get('headline') else data.get('title').split(':')[0]}
+            title = data.get('headline') if data.get('headline') else data.get('title')
+            if title.find(':') > -1:
+                splits = title.split(':')
+                for split in splits:
+                    if split.lower().find('staffel') > -1 or split.lower().find('season') > -1:
+                        title = split.strip()
+                        break
+            infoLabels = {'title': title}
+            season_match = re.search('staffel[\S\s]+(\d+)|season[\S\s]+(\d+)', title.lower())
+            if not season_match:
+                season_match = re.search('(\d+)[\S\s]+staffel|(\d+)[\S\s]+season', title.lower())
+            if season_match:
+                infoLabels.update({'season': int(season_match.group(1))})
+
         elif type == 'show':
             infoLabels = {'title': data.get('channel').get('shortName') if data.get('channel').get('shortName') else data.get('headline')}
             infos.update({'cmsId': data.get('id')})
     
-        infoLabels.update({'plot': data.get('info').encode('utf-8') if data.get('info', None) else None})    
+        infoLabels.update({'plot': data.get('info').encode('utf-8') if data.get('info') else None})    
         infos.update({'infoLabels' : infoLabels})
     
         if data.get('picture'):

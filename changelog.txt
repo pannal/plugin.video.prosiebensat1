@@ -1,4 +1,8 @@
-﻿1.1.0
+﻿1.1.1
+- Improved season and episode detection
+- Improvement of the episode search
+- Fixed error if there is no season number or episode number
+1.1.0
 - Added LiveTV
 1.0.0 
 - Initial Source
