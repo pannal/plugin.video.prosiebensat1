@@ -133,7 +133,13 @@ def listShows(entry):
         for show in shows:
             infoLabels = show.get('infoLabels', {})
             art = show.get('art')
-            url = build_url({'action': 'showcontent', 'entry': {'domain': entry.get('domain'), 'path': '{0}{1}'.format(show.get('url'), '/video'), 'cmsId': show.get('cmsId'), 'type': 'season', 'art': art, 'infoLabels': infoLabels}})
+            domain = entry.get('domain')
+            if show.get('contentType') == 'redirect':
+                match = re.search('http?:\/\/[w]{0,3}\.?([^\/]*)', show.get('url'))
+                if match:
+                    domain = match.group(1)
+                    show.update({'url': ''})
+            url = build_url({'action': 'showcontent', 'entry': {'domain': domain, 'path': '{0}{1}'.format(show.get('url'), '/video'), 'cmsId': show.get('cmsId'), 'type': 'season', 'art': art, 'infoLabels': infoLabels}})
             addDir(label=infoLabels.get('title'), url=url, art=art, infoLabels=infoLabels)
 
     xbmcplugin.setContent(addon_handle, 'tvshows')
@@ -152,23 +158,27 @@ def listShowcontent(entry):
             for season in seasons:
                 url = build_url({'action': 'showcontent', 'entry': {'domain': entry.get('domain'), 'path': entry.get('path'), 'cmsId': entry.get('cmsId'), 'seasonno': season, 'type': 'episode'}})
                 addDir(label='Staffel {0}'.format(season), url=url, art=entry.get('art'), infoLabels=entry.get('infoLabels'))
-                xbmcplugin.setContent(addon_handle, 'tvshows')
 
             noseasons = [item for item in items if not item.get('infoLabels', {}).get('season')]
             if len(noseasons) > 0:
                 url = build_url({'action': 'showcontent', 'entry': {'domain': entry.get('domain'), 'path': entry.get('path'), 'cmsId': entry.get('cmsId'), 'seasonno': None, 'type': 'episode'}})
                 addDir(label='Videos ohne Staffelzuordnung', url=url, art=entry.get('art'), infoLabels=entry.get('infoLabels'))
-                xbmcplugin.setContent(addon_handle, 'tvshows')
+
+            xbmcplugin.setContent(addon_handle, 'tvshows')
         else:
+            addon_content = None
+            addon_sortmethods = []
             for item in items:
                 infoLabels = item.get('infoLabels', {})
                 if detail.get('type') == 'season':
+                    addon_content = 'tvshows'
+                    addon_sortmethods.append(xbmcplugin.SORT_METHOD_LABEL)
                     entry_infoLabels = entry.get('infoLabels', {})
                     infoLabels.update({'plot': entry_infoLabels.get('plot')})
+                    cmsId = detail.get('cmsId') if detail.get('cmsId') else entry.get('cmsId')
 
-                    url = build_url({'action': 'showcontent', 'entry': {'domain': entry.get('domain'), 'path': item.get('url'), 'cmsId': entry.get('cmsId'), 'seasonno': infoLabels.get('season')}})
+                    url = build_url({'action': 'showcontent', 'entry': {'domain': entry.get('domain'), 'path': item.get('url'), 'cmsId': cmsId, 'seasonno': infoLabels.get('season')}})
                     addDir(label='Staffel {0}'.format(infoLabels.get('season')), url=url, art=entry.get('art'), infoLabels=infoLabels)
-                    xbmcplugin.setContent(addon_handle, 'tvshows')
                 else:
                     if detail.get('type') != 'episode' and entry.get('seasonno') and infoLabels.get('season') != int(entry.get('seasonno')):
                         continue
@@ -178,12 +188,17 @@ def listShowcontent(entry):
                         continue
                     elif entry.get('type') == 'episode' and not entry.get('seasonno') and infoLabels.get('season'):
                         continue
+                    addon_content = 'episodes'
+                    if infoLabels.get('season') and infoLabels.get('episode'):
+                        addon_sortmethods.extend([xbmcplugin.SORT_METHOD_EPISODE, xbmcplugin.SORT_METHOD_LABEL])
                     url = build_url({'action': 'play', 'entry': {'domain': entry.get('domain'), 'path': item.get('url')}})
                     addFile(infoLabels.get('title'), url, art=item.get('art', {}), infoLabels=infoLabels)
-                    xbmcplugin.setContent(addon_handle, 'episodes')
-                    xbmcplugin.addSortMethod(addon_handle, sortMethod=xbmcplugin.SORT_METHOD_EPISODE)
 
-    xbmcplugin.addSortMethod(addon_handle, sortMethod=xbmcplugin.SORT_METHOD_LABEL)
+            if addon_content:
+                xbmcplugin.setContent(addon_handle, addon_content)
+            for sortmethod in addon_sortmethods:
+                xbmcplugin.addSortMethod(addon_handle, sortMethod=sortmethod)
+
     xbmcplugin.endOfDirectory(addon_handle, cacheToDisc=True)
 
 
@@ -249,7 +264,8 @@ def getListItems(data, type, domain=None, path=None, cmsId=None, content=None):
                                         if checkItemUrlExists(citems, item) == False:
                                             citems.append(item)
                                             content.update({'items': citems})
-                                    elif groupitem.get('videoType') and groupitem.get('videoType').lower() == 'full':
+                                    elif (groupitem.get('videoType') and groupitem.get('videoType').lower() == 'full') \
+                                         or (not groupitem.get('videoType') and groupitem.get('url') and groupitem.get('url').startswith(path) and groupitem.get('url').find('playlist') == -1 and groupitem.get('url').find('clip') == -1):
                                         content.update({'type': 'episode'})
                                         item = getContentInfos(groupitem, 'episode')
                                         if checkItemUrlExists(citems, item) == False:
@@ -269,7 +285,7 @@ def getShownav(data, content, domain, cmsId):
             if channelitem.get('title').lower() == 'video' or channelitem.get('title').lower() == 'videos':
                 for channelsubitem in channelitem.get('items'):
                     if channelsubitem.get('title').lower().find('staffel') > -1 or channelsubitem.get('title').lower().find('season') > -1:
-                        content.update({'type': 'season'})
+                        content.update({'type': 'season', 'cmsId': channelitem.get('channel').get('cmsId')})
                         citems = content.get('items')
                         citems.append(getContentInfos(channelsubitem, 'season'))
                         content.update({'items': citems})
@@ -329,7 +345,7 @@ def getContentInfos(data, type):
 
             infos.update({'infoLabels' : infoLabels})
     else:
-        infos.update({'url': data.get('url') if data.get('url') else data.get('href'), 'type': type})
+        infos.update({'url': data.get('url') if data.get('url') else data.get('href'), 'type': type, 'contentType': data.get('contentType')})
 
         if type == 'episode':
             title = data.get('headline')
