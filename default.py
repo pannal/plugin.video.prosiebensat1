@@ -32,6 +32,8 @@ icon = os.path.join(addonPath, 'resources/icon.png')
 baseURL = "https://www."
 pluginBaseUrl = "plugin://{0}".format(addon.getAddonInfo('id'))
 userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.109 Safari/537.36'
+bv = xbmc.getInfoLabel('System.BuildVersion')
+kodiVersion = int(bv.split('.')[0])
 
 channels = [
                {
@@ -505,7 +507,7 @@ def playVideo(entry):
     li = xbmcgui.ListItem(path='{0}|{1}'.format(data, userAgent))
     li.setProperty('inputstream.adaptive.license_type', 'com.widevine.alpha')
     li.setProperty('inputstream.adaptive.manifest_type', 'mpd')
-    li.setProperty('inputstreamaddon', 'inputstream.adaptive')
+    li.setProperty('inputstreamaddon' if kodiVersion <= 18 else 'inputstream', 'inputstream.adaptive')
 
     try:
         lic = json_data['drm']['licenseAcquisitionUrl']
@@ -556,7 +558,7 @@ def playLive(entry):
     li.setProperty('inputstream.adaptive.license_type', 'com.widevine.alpha')
     li.setProperty('inputstream.adaptive.manifest_type', 'mpd')
     li.setProperty('inputstream.adaptive.manifest_update_parameter', 'full')
-    li.setProperty('inputstreamaddon', 'inputstream.adaptive')
+    li.setProperty('inputstreamaddon' if kodiVersion <= 18 else 'inputstream', 'inputstream.adaptive')
 
     try:
         lic = data['drm']['licenseAcquisitionUrl']
