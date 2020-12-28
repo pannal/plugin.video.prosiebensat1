@@ -35,6 +35,9 @@ userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML
 bv = xbmc.getInfoLabel('System.BuildVersion')
 kodiVersion = int(bv.split('.')[0])
 
+# settings
+split_parts = addon.getSetting('splitParts') == 'true'
+
 channels = [
                {
                   'id': '1'
@@ -289,18 +292,20 @@ def getListItems(data, type, domain=None, path=None, cmsId=None, content=None):
                                     elif groupitem.get('contentType') == "redirect" \
                                             and '//www.myspass.de/' in groupitem.get("url"):
                                         headline = groupitem.get('headline')
-                                        if "ganze folge" in headline.lower():
-                                            gf_base, gf_rest = headline.lower().split("ganze folge")
-                                            if "teil" in gf_rest:
-                                                gf_part = gf_rest.split("teil")[1]
-                                                try:
-                                                    gf_num = int(gf_part.strip())
-                                                    if gf_num > 1:
-                                                        continue
-                                                    groupitem["headline"] = groupitem["headline"][:len(gf_base) +
-                                                                                                   len("ganze folge")]
-                                                except ValueError:
-                                                    pass
+
+                                        if not split_parts:
+                                            if "ganze folge" in headline.lower():
+                                                gf_base, gf_rest = headline.lower().split("ganze folge")
+                                                if "teil" in gf_rest:
+                                                    gf_part = gf_rest.split("teil")[1]
+                                                    try:
+                                                        gf_num = int(gf_part.strip())
+                                                        if gf_num > 1:
+                                                            continue
+                                                        groupitem["headline"] = groupitem["headline"][:len(gf_base) +
+                                                                                                       len("ganze folge")]
+                                                    except ValueError:
+                                                        pass
                                         item = getContentInfos(groupitem, 'episode')
                                         myspass_id = groupitem.get("url").split('//www.myspass.de/')[1]
                                         if myspass_id.endswith("/"):
