@@ -315,8 +315,8 @@ def getListItems(data, type, domain=None, path=None, cmsId=None, content=None):
                                         except ValueError:
                                             continue
                                         item['path'] = item['url'] = \
-                                            'plugin://plugin.video.myspass_de/?IDENTiTY={}&mode=playCODE&direct=True'\
-                                                .format(myspass_id)
+                                            'plugin://plugin.video.myspass_de/?IDENTiTY={}&mode=playCODE&direct=True{}'\
+                                                .format(myspass_id, "&splitParts=True" if split_parts else "")
                                         item['infoLabels']['title'] = "MySpass: {}".format(item['infoLabels']['title'])
                                         if checkItemUrlExists(citems, item) == False:
                                             citems.append(item)
