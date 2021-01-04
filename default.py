@@ -268,13 +268,16 @@ def getListItems(data, type, domain=None, path=None, cmsId=None, content=None):
                         groupitems = groups[0].get('items', None)
                         if groupitems:
                             for groupitem in groupitems:
+                                if not groupitem or groupitem.get("contentType", None) == "frontpage":
+                                    continue
+
                                 citems = content.get('items')
                                 if type == 'show':
                                     item = getContentInfos(groupitem, 'show')
                                     if checkItemUrlExists(citems, item) == False:
                                         citems.append(item)
                                         content.update({'items': citems})
-                                elif cmsId and groupitem.get('channel').get('cmsId') == cmsId:
+                                elif cmsId and groupitem.get('channel', {}).get('cmsId') == cmsId:
                                     if not groupitem.get('videoType') and ((groupitem.get('headline') and (groupitem.get('headline').lower().startswith('staffel') or groupitem.get('headline').lower().startswith('season'))
                                             or "shows" in groupitem.get('headline').lower())):
                                         content.update({'type': 'season'})
